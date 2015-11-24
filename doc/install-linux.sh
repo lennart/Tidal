@@ -12,11 +12,25 @@ set -e
 # prepare system
 mkdir -p ~/tidal
 cd ~/tidal
-sudo apt-get -y install build-essential libsndfile1-dev libsamplerate0-dev \
-    liblo-dev libjack-jackd2-dev qjackctl jackd git \
-    ghc zlib1g-dev cabal-install \
-    emacs24 haskell-mode
 
+# get system architecture
+arch=$(uname -m)
+
+if [ "${arch}" = "armv7l" ]; then
+    echo "Package: *\nPin: release a=stable\nPin-Priority: 503\n\nPackage: *\nPin: release a=testing\nPin-Priority: 502\n\nPackage: ghc\nPin: release a=testing\nPin-Priority: 505\n" | sudo tee /etc/apt/preferences.d/99tidal
+
+    echo "# add stretch repos for working ghci\ndeb http://mirrordirector.raspbian.org/raspbian/ stretch main contrib non-free rpi\n" | sudo tee /etc/apt/sources.list.d/tidal.list
+
+    sudo apt-get -y install build-essential libsndfile1-dev libsamplerate0-dev \
+         liblo-dev libjack-jackd2-dev qjackctl jackd git \
+         ghc/testing zlib1g-dev cabal-install \
+         emacs23 haskell-mode
+else
+    sudo apt-get -y install build-essential libsndfile1-dev libsamplerate0-dev \
+         liblo-dev libjack-jackd2-dev qjackctl jackd git \
+         ghc zlib1g-dev cabal-install \
+         emacs24 haskell-mode
+fi
 # install Dirt
 if [ -d "Dirt" ]; then
 	cd Dirt
@@ -26,7 +40,7 @@ if [ -d "Dirt" ]; then
 	fi
 	git pull
 else
-	git clone https://github.com/yaxu/Dirt.git
+	git clone https://github.com/tidalcycles/Dirt.git
 	cd Dirt
 fi
 make clean; make
@@ -39,7 +53,7 @@ cabal install tidal
 # configure Emacs
 mkdir -p ~/tidal/emacs
 rm -f ~/tidal/emacs/tidal.el
-wget -O ~/tidal/emacs/tidal.el https://raw.githubusercontent.com/yaxu/Tidal/master/tidal.el
+wget -O ~/tidal/emacs/tidal.el https://raw.githubusercontent.com/tidalcycles/Tidal/master/tidal.el
 touch ~/.emacs
 if [ `grep "(add-to-list 'load-path \"~/tidal/emacs\")" ~/.emacs | wc -l` -ne 1 ]; then
 	echo "(add-to-list 'load-path \"~/tidal/emacs\")" >> ~/.emacs
