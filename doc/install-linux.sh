@@ -22,6 +22,11 @@ if [ "${arch}" = "armv7l" ]; then
 
     echo "# add stretch repos for working ghci\ndeb http://mirrordirector.raspbian.org/raspbian/ stretch main contrib non-free rpi\n" | sudo tee /etc/apt/sources.list.d/tidal.list
 
+    # increase swap space
+    sudo cp /etc/dphys-swapfile /home/pi/dphys-swapfile.bak
+    echo "CONF_SWAPSIZE=1024" | sudo tee /etc/dphys-swapfile
+    sudo service dphys-swapfile restart
+
     # update sources to persist changes
     sudo apt-get update
 
@@ -54,6 +59,12 @@ make clean; make
 cabal update
 cabal install cabal
 cabal install tidal
+
+if [ "${arch}" = "armv7l" ]; then
+    # reset swap size
+    sudo mv /home/pi/dphys-swapfile.bak /etc/dphys-swapfile
+    sudo service dphys-swapfile restart
+fi
 
 # configure Emacs
 mkdir -p ~/tidal/emacs
