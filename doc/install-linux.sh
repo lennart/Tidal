@@ -18,7 +18,7 @@ arch=$(uname -m)
 
 if [ "${arch}" = "armv7l" ]; then
 # pin ghc to raspian testing to make ghci work
-    echo "Package: *\nPin: release a=stable\nPin-Priority: 503\n\nPackage: *\nPin: release a=testing\nPin-Priority: 502\n\nPackage: ghc\nPin: release a=testing\nPin-Priority: 505\n" | sudo tee /etc/apt/preferences.d/99tidal
+    echo "Package: *\nPin: release a=stable\nPin-Priority: 503\n\nPackage: *\nPin: release a=testing\nPin-Priority: 502\n\nPackage: ghc cabal-install\nPin: release a=testing\nPin-Priority: 505\n" | sudo tee /etc/apt/preferences.d/99tidal
 
     echo "# add stretch repos for working ghci\ndeb http://mirrordirector.raspbian.org/raspbian/ stretch main contrib non-free rpi\n" | sudo tee /etc/apt/sources.list.d/tidal.list
 
@@ -27,7 +27,7 @@ if [ "${arch}" = "armv7l" ]; then
 
     sudo apt-get -y install build-essential libsndfile1-dev libsamplerate0-dev \
          liblo-dev libjack-jackd2-dev qjackctl jackd git \
-         ghc/testing zlib1g-dev cabal-install \
+         ghc/testing zlib1g-dev cabal-install/testing \
          emacs23 haskell-mode
 else
 # standard linux dependency installation
