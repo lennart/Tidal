@@ -50,7 +50,7 @@ if [ -d "Dirt" ]; then
 	fi
 	git pull
 else
-	git clone https://github.com/tidalcycles/Dirt.git
+	git clone --recursive https://github.com/tidalcycles/Dirt.git
 	cd Dirt
 fi
 make clean; make
