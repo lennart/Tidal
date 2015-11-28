@@ -77,7 +77,28 @@ fi
 if [ `grep "(require 'tidal)" ~/.emacs | wc -l` -ne 1 ]; then
 	echo "(require 'tidal)" >> ~/.emacs
 fi
+
+# setup audio hw access
 sudo adduser $USER audio
+
+if [ "${arch}" = "armv7l" ]; then
+    echo '<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd"><busconfig><policy user="pi"><allow own="org.freedesktop.ReserveDevice1.Audio0" /><allow own="org.freedesktop.ReserveDevice1.Audio1" /></policy></busconfig>' | sudo tee "/etc/dbus-1/system.d/tidal.conf"
+    echo 'options snd-usb-audio index=-2' | sudo tee "/etc/modprobe.d/tidal.conf"
+
+    echo "By default, tidal will use the raspberry pi on-board soundcard"
+    echo "This will result in poor audio quality. Consider using a usb soundcard to improve playback quality!"
+    echo "To make tidal use your usb soundcard, comment the onboard soundcard module in /etc/modules-load.d/modules.conf like this:"
+    echo
+    echo "# snd-bcm2835"
+    echo
+    echo "And change the index option for snd-usb-audio in /etc/modprobe.d/tidal.conf like this:"
+    echo
+    echo "options snd-usb-audio index=0"
+    echo
+    echo "Reboot the pi and make sure your usb soundcard is connected and speakers/headphones are plugged into the it."
+    echo "WARNING: the above procedure will effectively TURN OFF the onboard soundcard!"
+fi
+
 
 # put starter on th desktop
 cd ~/Desktop
