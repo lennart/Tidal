@@ -86,9 +86,9 @@ if [ "${arch}" = "armv7l" ]; then
     echo 'options snd-usb-audio index=-2' | sudo tee "/etc/modprobe.d/tidal.conf"
 
     # make sure a bash_profile exists
-    touch "$HOME/.bash_profile"
+    touch "/home/pi/.bash_profile"
     # allow DBUS to work without X11
-    echo 'export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket' | tee -a "$HOME/.bash_profile"
+    echo 'export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket' | tee -a "/home/pi/.bash_profile"
     echo "By default, tidal will use the raspberry pi on-board soundcard"
     echo "This will result in poor audio quality. Consider using a usb soundcard to improve playback quality!"
     echo "To make tidal use your usb soundcard, comment the onboard soundcard module in /etc/modules-load.d/modules.conf like this:"
