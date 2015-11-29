@@ -85,6 +85,7 @@ if [ "${arch}" = "armv7l" ]; then
     echo '<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd"><busconfig><policy user="pi"><allow own="org.freedesktop.ReserveDevice1.Audio0" /><allow own="org.freedesktop.ReserveDevice1.Audio1" /></policy></busconfig>' | sudo tee "/etc/dbus-1/system.d/tidal.conf"
     echo 'options snd-usb-audio index=-2' | sudo tee "/etc/modprobe.d/tidal.conf"
 
+    echo 'export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket' | tee -a '$HOME/.bash_profile'
     echo "By default, tidal will use the raspberry pi on-board soundcard"
     echo "This will result in poor audio quality. Consider using a usb soundcard to improve playback quality!"
     echo "To make tidal use your usb soundcard, comment the onboard soundcard module in /etc/modules-load.d/modules.conf like this:"
