@@ -1,63 +1,84 @@
---import Sound.Tidal.Context
-import qualified Sound.ALSA.Sequencer.Address as Addr
-import qualified Sound.ALSA.Sequencer.Client as Client
-import qualified Sound.ALSA.Sequencer.Port as Port
-import qualified Sound.ALSA.Sequencer.Event as Event
-import qualified Sound.ALSA.Sequencer as SndSeq
-import qualified Sound.ALSA.Exception as AlsaExc
-import qualified Sound.ALSA.Sequencer.Connect as Connect
-import GHC.Word
-import GHC.Int
+import qualified Sound.PortMidi as PM
 
+import System.Environment
 import System.Cmd
+import System.Exit
+
+import Data.Bits
 import Control.Concurrent
 import Text.Printf
+import Foreign.C
 
-channel = Event.Channel 0
+channel = 1
 notes = [12 .. 100]
 time = 3
 
-midiport = "24:0"
-
 main =
-   do h <- SndSeq.openDefault SndSeq.Block
-      Client.setName (h :: SndSeq.T SndSeq.OutputMode) "rip"
-      c <- Client.getId h
-      p <- Port.createSimple h "out"
-           (Port.caps [Port.capRead, Port.capSubsRead]) Port.typeMidiGeneric
-      conn <- Connect.createTo h p =<< Addr.parse h midiport
-      sequence_ $ map (play h conn) notes
-      return ()
+   do args <- getArgs
+      maybe usage start $ readMidiport args
 
-play h conn n =
+start midiport = do PM.initialize
+                    econn <- PM.openOutput midiport 1
+                    either (handleOutput midiport) (handleFailure midiport) econn
+                    PM.terminate
+                    exitSuccess
+
+usage = do
+  putStrLn "Usage: tidal-rip <midiport-number>"
+  availablePorts
+  exitFailure
+
+readMidiport :: [String] -> Maybe Int
+readMidiport args | length args > 0 = Just $ read $ head args
+                  | otherwise = Nothing
+
+handleFailure i err = do
+  putStrLn ("Error opening device " ++ (show i) ++ " (" ++ (show err) ++ ")\n")
+  availablePorts
+  exitFailure
+
+availablePorts = do
+  count <- PM.countDevices
+  devices <- fmap (zip [0..]) $ mapM PM.getDeviceInfo [0..(count - 1)]
+  putStrLn ("Available devices\n" ++ (unlines (["ID:\tName"]++(zipWith (++) (map (show . fst) devices) (map ((":\t"++) . PM.name . snd) devices)))))
+
+handleOutput i o = do
+  info <- PM.getDeviceInfo i
+  putStrLn ("Opened: " ++ show (PM.interface info) ++ ": " ++ show (PM.name info))
+  sequence_ $ map (play o) notes
+
+play :: PM.PMStream -> Int -> IO ()
+play conn n =
   do let tmpfn = printf "tmp-%03d.wav" n
          fn = printf "note-%03d.wav" n
      forkIO $ do rawSystem "ecasound" ["-t:" ++ (show time), "-i", "jack,system", "-o", tmpfn]
                  return ()
      threadDelay 500000
-     Event.outputDirect h $ noteOn conn n 80
+     noteOn conn channel (fromIntegral n) 80 0
      forkIO $ do threadDelay 50000
-                 Event.outputDirect h $ noteOff conn n
+                 noteOff conn channel (fromIntegral n) 0
                  return ()
      threadDelay $ 1000000 * time
      forkIO $ do rawSystem "sox" [tmpfn, fn, "silence", "1", "0", "-55d", "reverse", "silence", "1", "0", "-55d", "reverse"]
                  rawSystem "rm" [tmpfn]
                  return ()
      return ()
-     
-     
-noteOn :: Connect.T -> Word8 -> Word8 -> Event.T
-noteOn conn val vel = 
-  Event.forConnection conn 
-  $ Event.NoteEv Event.NoteOn
-  $ Event.simpleNote channel
-                     (Event.Pitch (val))
-                     (Event.Velocity vel)
 
-noteOff :: Connect.T -> Word8 -> Event.T
-noteOff conn val = 
-  Event.forConnection conn 
-  $ Event.NoteEv Event.NoteOff
-  $ Event.simpleNote channel
-                     (Event.Pitch (val))
-                     (Event.normalVelocity)
+-- MIDI Messages
+noteOn :: PM.PMStream -> CLong -> CLong -> CLong -> CULong -> IO (PM.PMError)
+noteOn o ch val vel t = do
+  let evt = makeEvent 0x90 val ch vel t
+  PM.writeEvents o [evt]
+
+noteOff :: PM.PMStream -> CLong -> CLong -> CULong -> IO (PM.PMError)
+noteOff o ch val t = do
+  let evt = makeEvent 0x80 val ch 60 t
+  PM.writeEvents o [evt]
+
+-- MIDI Utils
+encodeChannel :: (Bits a, Num a) => a -> a -> a
+encodeChannel ch cc = (((-) ch 1) .|. cc)
+
+makeEvent :: CLong -> CLong -> CLong -> CLong -> CULong -> PM.PMEvent
+makeEvent st n ch v t = PM.PMEvent msg (t)
+  where msg = PM.PMMsg (encodeChannel ch st) (n) (v)

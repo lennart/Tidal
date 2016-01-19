@@ -17,6 +17,10 @@ Extra-source-files: README.md tidal.el doc/tidal.md
 
 Description: Tidal is a domain specific language for live coding pattern.
 
+executable tidal-rip
+  build-depends:       base < 5, process, PortMidi >= 0.1.5
+  main-is:             bin/rip.hs
+
 library
   Exposed-modules:     Sound.Tidal.Strategies
                        Sound.Tidal.Dirt
