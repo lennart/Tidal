@@ -51,7 +51,7 @@ play :: PM.PMStream -> Int -> IO ()
 play conn n =
   do let tmpfn = printf "tmp-%03d.wav" n
          fn = printf "note-%03d.wav" n
-     forkIO $ do rawSystem "ecasound" ["-t:" ++ (show time), "-i", "jack,system", "-o", tmpfn]
+     forkIO $ do rawSystem "rec" [tmpfn,  "trim", "0", (show time)]
                  return ()
      threadDelay 500000
      noteOn conn channel (fromIntegral n) 80 0
