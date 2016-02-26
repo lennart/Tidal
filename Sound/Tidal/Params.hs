@@ -6,9 +6,6 @@ import qualified Data.Map as Map
 import Sound.Tidal.Utils
 import Control.Applicative
 
-make' :: (a -> Value) -> Param -> Pattern a -> ParamPattern
-make' toValue par p = fmap (\x -> Map.singleton par (defaultV x)) p
-  where defaultV a = Just $ toValue a
 
 grp :: [Param] -> Pattern String -> ParamPattern
 grp [] _ = silence
@@ -24,15 +21,7 @@ grp params p = (fmap lookupPattern p)
 sound :: Pattern String -> ParamPattern
 sound = grp [s_p, n_p]
 
-note :: Pattern Int -> ParamPattern
-note = grp [n_p]
-
-pF name defaultV = (make' VF param, param)
-  where param = F name defaultV
-pI name defaultV = (make' VI param, param)
-  where param = I name defaultV
-pS name defaultV = (make' VS param, param)
-  where param = S name defaultV
+note = n
 
 (accelerate, accelerate_p)       = pF "accelerate" (Just 0)
 (attack, attack_p)               = pF "attack" (Just 0)

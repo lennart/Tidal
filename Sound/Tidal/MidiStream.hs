@@ -1,4 +1,4 @@
-module Sound.Tidal.MidiStream (midiStream, midiBackend, midiState, midiSetters, midiDevices) where
+module Sound.Tidal.MidiStream (midi, midiStream, midiBackend, midiState, midiSetters, midiDevices) where
 
 import Control.Monad.Trans.Maybe
 -- generics
@@ -66,8 +66,8 @@ send s ch cshape shape change tick o ctrls (tdur:tnote:trest) = midi
 mkSend cshape channel s = return $ (\ shape change tick (o,m) -> do
                         let defaulted = (S.applyShape' shape m)
                             -- split ParamMap into Properties and Controls
-                            mpartition = fmap (Map.partitionWithKey (\k _ -> (name k) `elem` ["dur", "n", "velocity", "nudge"])) defaulted
-                            props = fmap fst mpartition
+                            mpartition = fmap (Map.partitionWithKey (\k _ -> (name k) `elem` ["dur", "n", "nudge", "s", "velocity"])) defaulted
+                            props = fmap (Map.delete s_p) $ fmap fst mpartition
                             ctrls = fmap snd mpartition
                             props' = fmap (Map.toAscList) $ fmap (Map.mapMaybe (id)) props
                             -- only send explicitly set Control values
@@ -122,6 +122,8 @@ makeConnection devicesM deviceName channel cshape = do
       error "Failed"
 --  devidM'' <- devidM'  -- maybe
 
+--type NamedOutput = (String,String)
+
 midiDevices :: IO (MVar (MidiDeviceMap))
 midiDevices = do
   newMVar $ Map.fromList []
@@ -143,6 +145,13 @@ midiSetters d n c s getNow = do
   ds <- midiState d n c s
   return (setter ds, transition getNow ds)
 
+
+midi :: MVar (MidiDeviceMap) -> ControllerShape -> String -> String -> Int -> IO Time -> IO Stream
+midi devs cshape name dname channel getNow = do
+  state <- midiState devs dname channel cshape
+  let s = setter state
+      t = transition getNow state
+  return $ Stream (Just name) s t
 
 -- actual midi interaction
 sendevents :: Output -> IO ThreadId
@@ -215,8 +224,8 @@ noteOff o ch val t = do
   sendEvent o evt
 
 makeCtrl :: Output -> CLong -> ControlChange -> CLong -> CULong -> IO (Maybe a)
-makeCtrl o ch (CC {midi=midi, range=range}) n t = makeCC o ch (fromIntegral midi) n t
-makeCtrl o ch (NRPN {midi=midi, range=range}) n t = makeNRPN o ch (fromIntegral midi) n t
+makeCtrl o ch (CC {midicps=midi, range=range}) n t = makeCC o ch (fromIntegral midi) n t
+makeCtrl o ch (NRPN {midicps=midi, range=range}) n t = makeNRPN o ch (fromIntegral midi) n t
 -- makeCtrl o ch (C.SysEx {C.midi=midi, C.range=range, C.scalef=f}) n t = makeSysEx o ch (fromIntegral midi) scaledN t
 --   where scaledN = fromIntegral $ (f range (n))
 

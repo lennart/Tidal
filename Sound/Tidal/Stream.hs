@@ -3,6 +3,7 @@
 module Sound.Tidal.Stream where
 
 import Data.Maybe
+import Data.List (partition)
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.MVar
@@ -20,9 +21,15 @@ import qualified Data.Map as Map
 
 type ToMessageFunc = Shape -> Tempo -> Int -> (Double, ParamMap) -> Maybe (IO ())
 
-data Backend a = Backend {
-  toMessage :: ToMessageFunc
-  }
+type Setter = ParamPattern -> IO ()
+
+type TransitionFunc = (T.Time -> [ParamPattern] -> ParamPattern)
+type Transitioner = TransitionFunc -> ParamPattern -> IO ()
+
+
+data Backend a = Backend { toMessage :: ToMessageFunc }
+
+data Stream = Stream { samplename :: Maybe String, manipulator :: Setter, transitioner :: Transitioner }
 
 data Param = S {name :: String, sDefault :: Maybe String}
            | F {name :: String, fDefault :: Maybe Double}
@@ -72,10 +79,10 @@ required :: Shape -> [Param]
 required = filter (not . hasDefault) . params
 
 hasRequired :: Shape -> ParamMap -> Bool
-hasRequired s m = isSubset (required s) (Map.keys (Map.filter (\x -> x /= Nothing) m))
+hasRequired s m = isSubset (required s) (Map.keys (Map.filter (\x -> isJust x) m))
 
 isSubset :: (Eq a) => [a] -> [a] -> Bool
-isSubset xs ys = all (\x -> elem x ys) xs
+isSubset xs ys = all (\x -> x `elem` ys) xs
 
 
 doAt t action = do forkIO $ do now <- getCurrentTime
@@ -164,8 +171,19 @@ makeF = make VF
 makeI :: Shape -> String -> Pattern Int -> ParamPattern
 makeI = make VI
 
+make' :: (a -> Value) -> Param -> Pattern a -> ParamPattern
+make' toValue par p = fmap (\x -> Map.singleton par (defaultV x)) p
+  where defaultV a = Just $ toValue a
+
 param :: Shape -> String -> Param
 param shape n = head $ filter (\x -> name x == n) (params shape)
+
+pF name defaultV = (make' VF param, param)
+  where param = F name defaultV
+pI name defaultV = (make' VI param, param)
+  where param = I name defaultV
+pS name defaultV = (make' VS param, param)
+  where param = S name defaultV
 
 merge :: ParamPattern -> ParamPattern -> ParamPattern
 merge x y = (flip Map.union) <$> x <*> y
@@ -215,4 +233,3 @@ setter :: MVar (a, [a]) -> a -> IO ()
 setter ds p = do ps <- takeMVar ds
                  putMVar ds $ (p, p:snd ps)
                  return ()
-

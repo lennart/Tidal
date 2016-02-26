@@ -3,12 +3,14 @@ module Sound.Tidal.OscStream where
 import qualified Data.Map as Map
 import Data.Maybe
 import Sound.Tidal.Tempo (Tempo, cps)
+import Sound.Tidal.Time as T
 import Sound.Tidal.Stream
 import Sound.Tidal.Utils
 import GHC.Float (float2Double, double2Float)
 import Sound.OSC.FD
 import Sound.OSC.Datum
 import Sound.Tidal.Params
+import Sound.Tidal.Transition (transition)
 
 data TimeStamp = BundleStamp | MessageStamp | NoStamp
  deriving Eq
@@ -29,6 +31,14 @@ toOscDatum (VS x) = Just $ string x
 toOscMap :: ParamMap -> OscMap
 toOscMap m = Map.map (toOscDatum) (Map.mapMaybe (id) m)
 
+
+osc :: Shape -> OscSlang -> String -> Int -> IO T.Time -> IO Stream
+osc shape slang host port getNow = do
+  backend <- Backend <$> makeConnection host port slang
+  state <- Sound.Tidal.Stream.state backend shape
+  let s = setter state
+      t = transition getNow state
+  return $ Stream Nothing s t
 
 -- constructs and sends an Osc Message according to the given slang
 -- and other params - this is essentially the same as the former
@@ -54,7 +64,7 @@ send s slang shape change tick (o, m) = osc
       toF _ = 0
 
 -- type OscMap = Map.Map Param (Maybe Datum)
-              
+
 -- Returns a function that will convert a generic ParamMap into a specific Osc message and send it over UDP to the supplied server
 -- messages will be built according to the given OscSlang
 makeConnection :: String -> Int -> OscSlang -> IO (ToMessageFunc)

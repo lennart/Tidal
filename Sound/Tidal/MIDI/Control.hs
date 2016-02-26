@@ -6,9 +6,9 @@ import Sound.Tidal.Params
 
 type RangeMapFunc = (Int, Int) -> Double -> Int
 
-data ControlChange = CC { param :: S.Param, midi :: Int, range :: (Int, Int), vdefault :: Double, scalef :: RangeMapFunc }
-           | NRPN { param :: S.Param, midi :: Int, range :: (Int, Int), vdefault :: Double, scalef :: RangeMapFunc }
-           | SysEx { param :: S.Param, midi :: Int, range :: (Int, Int), vdefault :: Double, scalef :: RangeMapFunc }
+data ControlChange = CC { param :: S.Param, midicps :: Int, range :: (Int, Int), vdefault :: Double, scalef :: RangeMapFunc }
+           | NRPN { param :: S.Param, midicps :: Int, range :: (Int, Int), vdefault :: Double, scalef :: RangeMapFunc }
+           | SysEx { param :: S.Param, midicps :: Int, range :: (Int, Int), vdefault :: Double, scalef :: RangeMapFunc }
 
 data ControllerShape = ControllerShape {
   controls :: [ControlChange],
@@ -18,7 +18,7 @@ data ControllerShape = ControllerShape {
 
 toShape :: ControllerShape -> S.Shape
 toShape cs =
-  let params = [dur_p, n_p, velocity_p] ++ params'
+  let params = [s_p, dur_p, n_p, velocity_p] ++ params'
       params' = [param p | p <- (controls cs)]
   in S.Shape {   S.params = params,
                  S.cpsStamp = False,
@@ -33,19 +33,19 @@ mapRange (low, high) = floor . (+ (fromIntegral low)) . (* ratio)
   where ratio = fromIntegral $ high - low
 
 mCC :: S.Param -> Int -> ControlChange
-mCC p m = CC {param=p, midi=m, range=(0, 127), vdefault=0, scalef=mapRange }
+mCC p m = CC {param=p, midicps=m, range=(0, 127), vdefault=0, scalef=mapRange }
 
 mNRPN :: S.Param -> Int -> ControlChange
-mNRPN p m = NRPN {param=p, midi=m, range=(0, 127), vdefault=0, scalef=mapRange }
+mNRPN p m = NRPN {param=p, midicps=m, range=(0, 127), vdefault=0, scalef=mapRange }
 
 mrNRPN :: S.Param -> Int -> (Int, Int) -> Double -> ControlChange
-mrNRPN p m r d = NRPN {param=p, midi=m, range=r, vdefault=d, scalef=mapRange }
+mrNRPN p m r d = NRPN {param=p, midicps=m, range=r, vdefault=d, scalef=mapRange }
 
 toParams :: ControllerShape -> [S.Param]
 toParams shape = map param (controls shape)
 
 ctrlN :: Num b => ControllerShape -> S.Param -> Maybe b
-ctrlN shape x = fmap fromIntegral $ fmap midi (paramN shape x)
+ctrlN shape x = fmap fromIntegral $ fmap midicps (paramN shape x)
 
 paramN :: ControllerShape -> S.Param -> Maybe ControlChange
 paramN shape x

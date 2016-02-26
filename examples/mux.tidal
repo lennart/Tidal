@@ -1,0 +1,16 @@
+devs <- midiDevices
+
+let streams = [
+      midi devs synthController "piano" "SimpleSynth virtual input" 1,
+      midi devs synthController "kalimba" "SimpleSynth virtual input" 2,
+      osc dirt superDirtSlang "127.0.0.1" 57120
+      ]
+
+(d1, t1) <- setters getNow streams
+
+d1 silence
+
+d1 $
+  sound (samples "[kick/2 piano, ~ snare/4, kalimba*4]" "{a e f g}%1")
+  # gain "0.8"
+  # velocity "0.4"

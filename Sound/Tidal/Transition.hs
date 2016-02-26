@@ -11,7 +11,7 @@ import Control.Applicative
 
 import Data.Monoid
 
-transition :: (IO Time) -> MVar (ParamPattern, [ParamPattern]) -> (Time -> [ParamPattern] -> ParamPattern) -> ParamPattern -> IO ()
+transition :: (IO Time) -> MVar (ParamPattern, [ParamPattern]) -> Transitioner
 transition getNow mv f p =
   do now <- getNow
      ps <- takeMVar mv

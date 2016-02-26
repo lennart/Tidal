@@ -76,7 +76,7 @@ instance Monad Pattern where
   return = pure
   -- Pattern a -> (a -> Pattern b) -> Pattern b
   -- Pattern Char -> (Char -> Pattern String) -> Pattern String
-  
+
   p >>= f = unwrap (f <$> p)
 {-Pattern (\a -> concatMap
                    (\((s,e), (s',e'), x) -> map (\ev -> ((s,e), (s',e'), thd' ev)) $
@@ -687,20 +687,20 @@ struct ps pv = (flip const) <$> ps <*> pv
 -- general rule parser (strings map to strings)
 parseLMRule :: String -> [(String,String)]
 parseLMRule s = map (splitOn ':') (commaSplit s)
-  where splitOn sep str = splitAt (fromJust $ elemIndex sep str) 
+  where splitOn sep str = splitAt (fromJust $ elemIndex sep str)
                             $ filter (/= sep) str
         commaSplit s = map T.unpack $ T.splitOn (T.pack ",") $ T.pack s
 
 -- specific parser for step sequencer (chars map to string)
--- ruleset in form "a:b,b:ab" 
-parseLMRule' :: String -> [(Char, String)]   
+-- ruleset in form "a:b,b:ab"
+parseLMRule' :: String -> [(Char, String)]
 parseLMRule' str = map fixer $ parseLMRule str
   where fixer (c,r) = (head c, r)
 
 -- for example, `lindenmayer 1 "a:b,b:ab" "ab" -> "bab"`
 lindenmayer :: Int -> String -> String -> String
 lindenmayer n r [] = []
-lindenmayer 1 r (c:cs) = (fromMaybe [c] $ lookup c $ parseLMRule' r) 
+lindenmayer 1 r (c:cs) = (fromMaybe [c] $ lookup c $ parseLMRule' r)
                          ++ (lindenmayer 1 r cs)
 lindenmayer n r s = iterate (lindenmayer 1 r) s !! n
 
@@ -726,7 +726,7 @@ stretch p = splitQueries $ Pattern $ \a@(s,e) -> arc
 
 -- usage example: fit' 2 4 "[0 1 2 3]/2" "[0 3 1 1, 2*4]" "[bd sn:2 cp*2 hh]/2"
 fit' cyc n from to p = unwrap' $ fit n (mapMasks n from' p') to
-  where mapMasks n from p = [stretch $ mask (filterValues (== i) from) p 
+  where mapMasks n from p = [stretch $ mask (filterValues (== i) from) p
                              | i <- [0..n-1]]
         p' = density cyc $ p
         from' = density cyc $ from
