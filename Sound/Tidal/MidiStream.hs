@@ -52,9 +52,10 @@ toMidiMap s m = Map.mapWithKey (toMidiEvent s) (Map.mapMaybe (id) m)
 
 send s ch cshape shape change tick o ctrls (tdur:tnote:trest) = midi
     where
-      midi = sendmidi s cshape ch' (note, vel, dur) (diff) ctrls
+      midi = sendmidi s cshape ch' (note, vel, dur') (diff) ctrls
       diff = floor $ (*1000) $ (logicalOnset - (offset s))
       note = fromIntegral $ ivalue $ snd tnote
+      dur' = dur * (1 / cps change) -- make duration values relative to cps
       dur = realToFrac $ fvalue $ snd tdur
       (vel, nudge) = case length trest of
         2 -> (mkMidi $ trest !! 1, fvalue $ snd $ trest !! 0)
