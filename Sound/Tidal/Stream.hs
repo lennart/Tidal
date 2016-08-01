@@ -19,17 +19,91 @@ import qualified Sound.Tidal.Time as T
 
 import qualified Data.Map.Strict as Map
 
+type Manipulator = ParamPattern -> IO ()
+type StreamState = MVar (ParamPattern, [ParamPattern])
 type ToMessageFunc = Shape -> Tempo -> Int -> (Double, Double, ParamMap) -> Maybe (IO ())
 
-data Backend a = Backend {
+data Backend = Backend {
   toMessage :: ToMessageFunc,
   flush :: Shape -> Tempo -> Int -> IO ()
+  }
+
+data Stream a = Stream {
+  shp :: Maybe Shape,
+  identity :: a,
+  set :: Maybe (a -> IO ()),
+  time :: Maybe (IO T.Time),
+  patM :: Maybe (MVar (a, [a])),
+  ticker :: Maybe (Backend -> Shape -> MVar (a, [a]) -> Tempo -> Int -> IO ()),
+  transport :: Backend
+  }
+
+instance (Show a) => Show (Stream a) where
+  show s@Stream{identity=id'} = show (id')
+
+infixr 0 $=
+
+($=) :: Stream a -> a -> IO()
+($=) Stream{set=Just f} = f
+($=) s@Stream{set=Nothing} = defaultSetter s
+
+
+infixr 1 |~
+
+(|~) :: (T.Time -> [a] -> a) -> Stream a -> Stream a
+(|~) = transset
+
+--defaultSetter :: Stream a -> a -> IO ()
+defaultSetter s p =  streamset s p head
+
+transset :: (T.Time -> [a] -> a) -> Stream a -> Stream a
+transset trans s = s { set = Just trans' }
+  where
+    trans' = transSetter trans s
+
+--transSetter :: (T.Time -> [a] -> a) -> Stream a -> a -> IO ()
+transSetter trans s@Stream{time=Just getNow} p = do
+  now <- getNow
+  streamset s p $ trans now
+transSetter _ Stream{time=Nothing} _ = putStrLn "Transition without `getNow` attempted, aborting"
+
+-- streamset ::  Stream a -> a -> ([a] -> a) -> IO ()
+streamset s p f = maybe (putStrLn "No pattern state present") swap dsMb
+  where
+    swap ds = do ps <- takeMVar ds
+                 let p' = f (p:snd ps)
+                 putMVar ds (p', p:snd ps)
+                 return ()
+    dsMb = patM s
+
+-- streamstate :: Stream a -> IO (Stream a)
+streamstate s@Stream{shp=Just shp', ticker=Just tk} = do
+  patternsM <- newMVar (identity s, [])
+  let ot = (tk backend shp' patternsM) :: Tempo -> Int -> IO ()
+  _ <- forkIO $ clockedTick ticksPerCycle ot
+  return $ s { patM = Just patternsM }
+    where
+      backend = transport s
+streamstate s = return s
+
+
+--stream' :: Shape -> IO T.Time -> Backend -> IO (Stream ParamPattern)
+stream' s t b = streamstate $ Stream {
+  identity=silence,
+  shp=Just s,
+  time=Just t,
+  transport=b,
+  set=Nothing,
+  ticker=Just onTick',
+  patM=Nothing
   }
 
 data Param = S {name :: String, sDefault :: Maybe String}
            | F {name :: String, fDefault :: Maybe Double}
            | I {name :: String, iDefault :: Maybe Int}
   deriving Typeable
+
+
 
 instance Eq Param where
   a == b = name a == name b
@@ -100,7 +174,7 @@ applyShape' :: Shape -> ParamMap -> Maybe ParamMap
 applyShape' s m | hasRequired s m = Just $ Map.union m (defaultMap s)
                 | otherwise = Nothing
 
-start :: Backend a -> Shape -> IO (MVar (ParamPattern))
+start :: Backend -> Shape -> IO (MVar (ParamPattern))
 start backend shape
   = do patternM <- newMVar silence
        let ot = (onTick backend shape patternM) :: Tempo -> Int -> IO ()
@@ -108,27 +182,27 @@ start backend shape
        return patternM
 
 -- variant of start where history of patterns is available
-state :: Backend a -> Shape -> IO (MVar (ParamPattern, [ParamPattern]))
+state :: Backend -> Shape -> IO (MVar (ParamPattern, [ParamPattern]))
 state backend shape
   = do patternsM <- newMVar (silence, [])
        let ot = (onTick' backend shape patternsM) :: Tempo -> Int -> IO ()
        forkIO $ clockedTick ticksPerCycle ot
        return patternsM
 
-stream :: Backend a -> Shape -> IO (ParamPattern -> IO ())
+stream :: Backend -> Shape -> IO (ParamPattern -> IO ())
 stream backend shape
   = do patternM <- start backend shape
        return $ \p -> do swapMVar patternM p
                          return ()
 
-streamcallback :: (ParamPattern -> IO ()) -> Backend a -> Shape -> IO (ParamPattern -> IO ())
+streamcallback :: (ParamPattern -> IO ()) -> Backend -> Shape -> IO (ParamPattern -> IO ())
 streamcallback callback backend shape
   = do f <- stream backend shape
        let f' p = do callback p
                      f p
        return f'
 
-onTick :: Backend a -> Shape -> MVar (ParamPattern) -> Tempo -> Int -> IO ()
+onTick :: Backend -> Shape -> MVar (ParamPattern) -> Tempo -> Int -> IO ()
 onTick backend shape patternM change ticks
   = do p <- readMVar patternM
        let ticks' = (fromIntegral ticks) :: Integer
@@ -142,7 +216,7 @@ onTick backend shape patternM change ticks
        return ()
 
 -- Variant where mutable variable contains list as history of the patterns
-onTick' :: Backend a -> Shape -> MVar (ParamPattern, [ParamPattern]) -> Tempo -> Int -> IO ()
+onTick' :: Backend -> Shape -> MVar (ParamPattern, [ParamPattern]) -> Tempo -> Int -> IO ()
 onTick' backend shape patternsM change ticks
   = do ps <- readMVar patternsM
        let ticks' = (fromIntegral ticks) :: Integer

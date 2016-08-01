@@ -13,7 +13,9 @@ import Data.Maybe
 import qualified Data.Map.Strict as Map
 import Data.Monoid
 
-transition :: (IO Time) -> MVar (ParamPattern, [ParamPattern]) -> (Time -> [ParamPattern] -> ParamPattern) -> ParamPattern -> IO ()
+type Transitioner = (Time -> [ParamPattern] -> ParamPattern) -> ParamPattern -> IO ()
+
+transition :: (IO Time) -> MVar (ParamPattern, [ParamPattern]) -> Transitioner
 transition getNow mv f p =
   do now <- getNow
      ps <- takeMVar mv

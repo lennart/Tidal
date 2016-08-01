@@ -70,40 +70,41 @@ dirtSlang = OscSlang {
 
 superDirtSlang = dirtSlang { timestamp = BundleStamp, path = "/play2", namedParams = True }
 
-superDirtBackend port = do
-  s <- makeConnection "127.0.0.1" port superDirtSlang
+superDirtBackend host port = do
+  s <- makeConnection host port superDirtSlang
   return $ Backend s (\_ _ _ -> return ())
 
-superDirtState port = do
-  backend <- superDirtBackend port
+superDirtState host port = do
+  backend <- superDirtBackend host port
   Sound.Tidal.Stream.state backend dirt
 
-dirtBackend = do
-  s <- makeConnection "127.0.0.1" 7771 dirtSlang
+dirtBackend host port = do
+  s <- makeConnection host port dirtSlang
   return $ Backend s (\_ _ _ -> return ())
 
 -- dirtstart name = start "127.0.0.1" 7771 dirt
 
 dirtStream = do
-  backend <- dirtBackend
+  backend <- dirtBackend "127.0.0.1" 7771
   stream backend dirt
 
-dirtState = do
-  backend <- dirtBackend
+dirtState :: String -> Int -> IO StreamState
+dirtState host port = do
+  backend <- dirtBackend host port
   Sound.Tidal.Stream.state backend dirt
 
 dirtSetters :: IO Time -> IO (ParamPattern -> IO (), (Time -> [ParamPattern] -> ParamPattern) -> ParamPattern -> IO ())
-dirtSetters getNow = do ds <- dirtState
+dirtSetters getNow = do ds <- dirtState "127.0.0.1" 7771
                         return (setter ds, transition getNow ds)
 
 superDirtSetters :: IO Time -> IO (ParamPattern -> IO (), (Time -> [ParamPattern] -> ParamPattern) -> ParamPattern -> IO ())
-superDirtSetters getNow = do ds <- superDirtState 57120
+superDirtSetters getNow = do ds <- superDirtState "127.0.0.1" 57120
                              return (setter ds, transition getNow ds)
 
 
 superDirts :: [Int]  -> IO [(ParamPattern -> IO (), (Time -> [ParamPattern] -> ParamPattern) -> ParamPattern -> IO ())]
 superDirts ports = do (_, getNow) <- bpsUtils
-                      states <- mapM (superDirtState) ports
+                      states <- mapM (superDirtState "127.0.0.1") ports
                       return $ map (\state -> (setter state, transition getNow state)) states
 
 -- -- disused parameter..
