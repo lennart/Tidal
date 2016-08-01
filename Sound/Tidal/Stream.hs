@@ -21,7 +21,7 @@ import qualified Data.Map.Strict as Map
 
 type ToMessageFunc = Shape -> Tempo -> Int -> (Double, Double, ParamMap) -> Maybe (IO ())
 
-data Backend a = Backend {
+data Backend = Backend {
   toMessage :: ToMessageFunc,
   flush :: Shape -> Tempo -> Int -> IO ()
   }
@@ -100,7 +100,7 @@ applyShape' :: Shape -> ParamMap -> Maybe ParamMap
 applyShape' s m | hasRequired s m = Just $ Map.union m (defaultMap s)
                 | otherwise = Nothing
 
-start :: Backend a -> Shape -> IO (MVar (ParamPattern))
+start :: Backend -> Shape -> IO (MVar (ParamPattern))
 start backend shape
   = do patternM <- newMVar silence
        let ot = (onTick backend shape patternM) :: Tempo -> Int -> IO ()
@@ -108,27 +108,27 @@ start backend shape
        return patternM
 
 -- variant of start where history of patterns is available
-state :: Backend a -> Shape -> IO (MVar (ParamPattern, [ParamPattern]))
+state :: Backend -> Shape -> IO (MVar (ParamPattern, [ParamPattern]))
 state backend shape
   = do patternsM <- newMVar (silence, [])
        let ot = (onTick' backend shape patternsM) :: Tempo -> Int -> IO ()
        forkIO $ clockedTick ticksPerCycle ot
        return patternsM
 
-stream :: Backend a -> Shape -> IO (ParamPattern -> IO ())
+stream :: Backend -> Shape -> IO (ParamPattern -> IO ())
 stream backend shape
   = do patternM <- start backend shape
        return $ \p -> do swapMVar patternM p
                          return ()
 
-streamcallback :: (ParamPattern -> IO ()) -> Backend a -> Shape -> IO (ParamPattern -> IO ())
+streamcallback :: (ParamPattern -> IO ()) -> Backend -> Shape -> IO (ParamPattern -> IO ())
 streamcallback callback backend shape
   = do f <- stream backend shape
        let f' p = do callback p
                      f p
        return f'
 
-onTick :: Backend a -> Shape -> MVar (ParamPattern) -> Tempo -> Int -> IO ()
+onTick :: Backend -> Shape -> MVar (ParamPattern) -> Tempo -> Int -> IO ()
 onTick backend shape patternM change ticks
   = do p <- readMVar patternM
        let ticks' = (fromIntegral ticks) :: Integer
@@ -142,7 +142,7 @@ onTick backend shape patternM change ticks
        return ()
 
 -- Variant where mutable variable contains list as history of the patterns
-onTick' :: Backend a -> Shape -> MVar (ParamPattern, [ParamPattern]) -> Tempo -> Int -> IO ()
+onTick' :: Backend -> Shape -> MVar (ParamPattern, [ParamPattern]) -> Tempo -> Int -> IO ()
 onTick' backend shape patternsM change ticks
   = do ps <- readMVar patternsM
        let ticks' = (fromIntegral ticks) :: Integer
