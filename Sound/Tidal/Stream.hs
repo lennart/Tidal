@@ -26,6 +26,76 @@ data Backend = Backend {
   flush :: Shape -> Tempo -> Int -> IO ()
   }
 
+data Stream a = Stream {
+  shp :: Maybe Shape,
+  identity :: a,
+  set :: Maybe (a -> IO ()),
+  time :: Maybe (IO T.Time),
+  patM :: Maybe (MVar (a, [a])),
+  ticker :: Maybe (Backend -> Shape -> MVar (a, [a]) -> Tempo -> Int -> IO ()),
+  transport :: Backend
+  }
+
+instance (Show a) => Show (Stream a) where
+  show s@Stream{identity=id'} = show (id')
+
+infixr 0 $=
+
+($=) :: Stream a -> a -> IO()
+($=) Stream{set=Just f} = f
+($=) s@Stream{set=Nothing} = defaultSetter s
+
+
+infixr 1 |~
+
+(|~) :: (T.Time -> [a] -> a) -> Stream a -> Stream a
+(|~) = transset
+
+--defaultSetter :: Stream a -> a -> IO ()
+defaultSetter s p =  streamset s p head
+
+transset :: (T.Time -> [a] -> a) -> Stream a -> Stream a
+transset trans s = s { set = Just trans' }
+  where
+    trans' = transSetter trans s
+
+--transSetter :: (T.Time -> [a] -> a) -> Stream a -> a -> IO ()
+transSetter trans s@Stream{time=Just getNow} p = do
+  now <- getNow
+  streamset s p $ trans now
+transSetter _ Stream{time=Nothing} _ = putStrLn "Transition without `getNow` attempted, aborting"
+
+-- streamset ::  Stream a -> a -> ([a] -> a) -> IO ()
+streamset s p f = maybe (putStrLn "No pattern state present") swap dsMb
+  where
+    swap ds = do ps <- takeMVar ds
+                 let p' = f (p:snd ps)
+                 putMVar ds (p', p:snd ps)
+                 return ()
+    dsMb = patM s
+
+-- streamstate :: Stream a -> IO (Stream a)
+streamstate s@Stream{shp=Just shp', ticker=Just tk} = do
+  patternsM <- newMVar (identity s, [])
+  let ot = (tk backend shp' patternsM) :: Tempo -> Int -> IO ()
+  _ <- forkIO $ clockedTick ticksPerCycle ot
+  return $ s { patM = Just patternsM }
+    where
+      backend = transport s
+streamstate s = return s
+
+
+--stream' :: Shape -> IO T.Time -> Backend -> IO (Stream ParamPattern)
+stream' s t b = streamstate $ Stream {
+  identity=silence,
+  shp=Just s,
+  time=Just t,
+  transport=b,
+  set=Nothing,
+  ticker=Just onTick',
+  patM=Nothing
+  }
+
 data Param = S {name :: String, sDefault :: Maybe String}
            | F {name :: String, fDefault :: Maybe Double}
            | I {name :: String, iDefault :: Maybe Int}
